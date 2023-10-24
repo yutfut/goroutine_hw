@@ -55,9 +55,22 @@ func DataSignerCrc32(data string) string {
 	return dataHash
 }
 
-func SingleHash(data string, sendToMulti chan string) {
-	sendToMulti <- DataSignerCrc32(data) + "~" + DataSignerCrc32(DataSignerMd5(data))
+func MD5(c chan string, data string) {
+	c <- DataSignerMd5(data)
+}
 
+func CRC32(c chan string, data string) {
+	c <- DataSignerCrc32(data)
+}
+
+func SingleHash(data string, sendToMulti chan string) {
+	c1 := make(chan string)
+	c2 := make(chan string)
+	go MD5(c1, data)
+	go CRC32(c2, data)
+	go CRC32(c1, <- c1)
+
+	sendToMulti <- <-c2 + "~" + <- c1
 }
 
 func MultiMultiHash(data string, i int, wg *sync.WaitGroup, result []string) {
@@ -122,7 +135,7 @@ func main() {
 
 	go CombineResults(sendToCombine, receiveFromCombine)
 
-	for i := 0; i < 7; i++ {
+	for i := 0; i < 2; i++ {
 		fromSingsToMulti := make(chan string)
 		wg.Add(1)
 		go SingleHash(strconv.Itoa(i), fromSingsToMulti)
