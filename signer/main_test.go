@@ -113,7 +113,7 @@ func TestSigner(t *testing.T) {
 		}),
 		job(SingleHash),
 		job(MultiHash),
-		job(CombineResults),
+		job(sendToCombineResults),
 		job(func(in, out chan interface{}) {
 			dataRaw := <-in
 			data, ok := dataRaw.(string)

@@ -55,48 +55,49 @@ func DataSignerCrc32(data string) string {
 	return dataHash
 }
 
-func SingleHash(data string, c chan string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	c <- DataSignerCrc32(data) + "~" + DataSignerCrc32(DataSignerMd5(data))
-	
+func SingleHash(data string, sendToMulti chan string) {
+	sendToMulti <- DataSignerCrc32(data) + "~" + DataSignerCrc32(DataSignerMd5(data))
+
 }
 
-func MultiMultiHash(data string, i int, wg *sync.WaitGroup, c chan string) {
+func MultiMultiHash(data string, i int, wg *sync.WaitGroup, result []string) {
 	defer wg.Done()
-	c <- DataSignerCrc32(strconv.Itoa(i) + data)
+	result[i] = DataSignerCrc32(strconv.Itoa(i) + data)
 }
 
-func MultiHash(c chan string, wg *sync.WaitGroup, hashArray *[]string) {
+func MultiHash(receiveFromSingle chan string, sendToCombine chan string, wg *sync.WaitGroup) {
 	defer wg.Done()
-	a := <-c
+	resultSingle := <-receiveFromSingle
+	close(receiveFromSingle)
 
-	chanM := make(chan string)
+	resultArray := make([]string, 6)
+
+	wgMulti := &sync.WaitGroup{}
 
 	for i := 0; i < 6; i++ {
-		wg.Add(1)
-		go MultiMultiHash(a, i, wg, chanM)
+		wgMulti.Add(1)
+		go MultiMultiHash(resultSingle, i, wgMulti, resultArray)
 	}
 
-	for i := 0; i < 6; i++ {
-		*hashArray = append(*hashArray, <- chanM)
+	wgMulti.Wait()
+
+	result := ""
+
+	for _, item := range resultArray {
+		result += item
 	}
-	close(chanM)
+
+	fmt.Println(result)
+	sendToCombine <- result
 }
 
-func main() {
-	start := time.Now()
-	wg := &sync.WaitGroup{}
+func CombineResults(receiveFromMilti chan string, returnResult chan string) {
 	hashArray := make([]string, 0)
-	for i := 0; i < 7; i++ {
-		c1 := make(chan string)
-		wg.Add(1)
-		go SingleHash(strconv.Itoa(i), c1, wg)
-		wg.Add(1)
-		go MultiHash(c1, wg, &hashArray)
-	}
-	wg.Wait()
 
-	fmt.Printf("--//--\n")
+	for a := range receiveFromMilti {
+		hashArray = append(hashArray, a)
+	}
+
 	sort.Strings(hashArray)
 
 	result := hashArray[0]
@@ -107,6 +108,30 @@ func main() {
 		result += "_"
 		result += hash
 	}
-	fmt.Println(result)
+	fmt.Println("-//-")
+	returnResult <- result
+	close(returnResult)
+}
+
+func main() {
+	start := time.Now()
+	wg := &sync.WaitGroup{}
+
+	sendToCombine := make(chan string)
+	receiveFromCombine := make(chan string)
+
+	go CombineResults(sendToCombine, receiveFromCombine)
+
+	for i := 0; i < 7; i++ {
+		fromSingsToMulti := make(chan string)
+		wg.Add(1)
+		go SingleHash(strconv.Itoa(i), fromSingsToMulti)
+		go MultiHash(fromSingsToMulti, sendToCombine, wg)
+	}
+	wg.Wait()
+	close(sendToCombine)
+
+	fmt.Println(<-receiveFromCombine)
+
 	fmt.Println(time.Now().Sub(start))
 }
