@@ -57,47 +57,30 @@ func DataSignerCrc32(data string) string {
 
 func SingleHash(data string, c chan string, wg *sync.WaitGroup) {
 	defer wg.Done()
-	//fmt.Printf("data %s\n", data)
-	md5Data := DataSignerMd5(data)
-	//fmt.Printf("md5(data) %s\n", md5Data)
-	crc32Md5Data := DataSignerCrc32(md5Data)
-	//fmt.Printf("crc32(md5(data)) %s\n", crc32Md5Data)
-	crc32Data := DataSignerCrc32(data)
-	//fmt.Printf("crc32(data) %s\n", crc32Data)
-	result := crc32Data + "~" + crc32Md5Data
-	//fmt.Printf("result %s\n", result)
-	c <- result
+	c <- DataSignerCrc32(data) + "~" + DataSignerCrc32(DataSignerMd5(data))
+	
 }
 
 func MultiMultiHash(data string, i int, wg *sync.WaitGroup, c chan string) {
 	defer wg.Done()
-	result := DataSignerCrc32(strconv.Itoa(i) + data)
-	//fmt.Printf("%d %s\n", i, result)
-	c <- result
+	c <- DataSignerCrc32(strconv.Itoa(i) + data)
 }
 
 func MultiHash(c chan string, wg *sync.WaitGroup, hashArray *[]string) {
 	defer wg.Done()
 	a := <-c
-	//fmt.Println(a)
 
-	chanArray := make([]chan string, 0)
+	chanM := make(chan string)
 
 	for i := 0; i < 6; i++ {
-		buffChan := make(chan string)
-		chanArray = append(chanArray, buffChan)
 		wg.Add(1)
-		go MultiMultiHash(a, i, wg, buffChan)
+		go MultiMultiHash(a, i, wg, chanM)
 	}
 
-	finishString := <-chanArray[0]
-	finishString += <-chanArray[1]
-	finishString += <-chanArray[2]
-	finishString += <-chanArray[3]
-	finishString += <-chanArray[4]
-	finishString += <-chanArray[5]
-	//fmt.Printf("%s\n", finishString)
-	*hashArray = append(*hashArray, finishString)
+	for i := 0; i < 6; i++ {
+		*hashArray = append(*hashArray, <- chanM)
+	}
+	close(chanM)
 }
 
 func main() {
