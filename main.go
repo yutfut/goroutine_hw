@@ -68,9 +68,9 @@ func SingleHash(data string, sendToMulti chan string) {
 	c2 := make(chan string)
 	go MD5(c1, data)
 	go CRC32(c2, data)
-	go CRC32(c1, <- c1)
+	go CRC32(c1, <-c1)
 
-	sendToMulti <- <-c2 + "~" + <- c1
+	sendToMulti <- <-c2 + "~" + <-c1
 }
 
 func MultiMultiHash(data string, i int, wg *sync.WaitGroup, result []string) {
