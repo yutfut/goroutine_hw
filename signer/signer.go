@@ -28,9 +28,7 @@ func SingleHash(in, out chan interface{}) {
 	go CRC32(c2, data.(string))
 	go CRC32(c1, <-c1)
 
-	result := <-c2 + "~" + <-c1
-	fmt.Println("35", result)
-	out <- result
+	out <- <-c2 + "~" + <-c1
 	fmt.Println(2)
 }
 
@@ -107,7 +105,7 @@ func ExecutePipelineMock() {
 	go CombineResults(c3, c4)
 
 	go func() {
-		time.Sleep(10 * time.Second) 
+		time.Sleep(20 * time.Second) 
 		close(c3)
 	} ()
 
