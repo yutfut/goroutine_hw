@@ -20,15 +20,12 @@ func CRC32(out chan string, data string) {
 func SingleHash(in, out chan interface{}) {
 	fmt.Println(1)
 
-	buff_data := <- in
-	fmt.Println("24", buff_data)
-	data := buff_data.(string)
-	fmt.Println("26", data)
+	data := <- in
 
 	c1 := make(chan string)
 	c2 := make(chan string)
-	go MD5(c1, data)
-	go CRC32(c2, data)
+	go MD5(c1, data.(string))
+	go CRC32(c2, data.(string))
 	go CRC32(c1, <-c1)
 
 	result := <-c2 + "~" + <-c1
@@ -46,10 +43,8 @@ func ForMultiHash(th int, data string, result *string, wg *sync.WaitGroup) {
 
 func MultiHash(in, out chan interface{}) {
 	fmt.Println(3)
-	buff_data := <-in
-	fmt.Println(buff_data)
-	data := buff_data.(string)
-	fmt.Println(data)
+
+	data := <-in
 
 	result := make([]string, 6)
 
@@ -57,7 +52,7 @@ func MultiHash(in, out chan interface{}) {
 
 	for i := 0; i < 6; i++ {
 		wg.Add(1)
-		go ForMultiHash(i, data, &result[i], wg)
+		go ForMultiHash(i, data.(string), &result[i], wg)
 	}
 
 	wg.Wait()
