@@ -1,4 +1,4 @@
-package main
+package signer
 
 import (
 	"crypto/md5"
@@ -13,9 +13,7 @@ import (
 /*
 это тест на проверку того что у нас это действительно конвейер
 неправильное поведение: накапливать результаты выполнения одной функции, а потом слать их в следующую.
-
 	это не похволяет запускать на конвейере бесконечные задачи
-
 правильное поведение: обеспечить беспрепятственный поток
 */
 func TestPipeline(t *testing.T) {
@@ -113,7 +111,7 @@ func TestSigner(t *testing.T) {
 		}),
 		job(SingleHash),
 		job(MultiHash),
-		job(sendToCombineResults),
+		job(CombineResults),
 		job(func(in, out chan interface{}) {
 			dataRaw := <-in
 			data, ok := dataRaw.(string)
