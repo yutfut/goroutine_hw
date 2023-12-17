@@ -1,93 +1,87 @@
 package main
 
 import (
-	"sync"
-	"strconv"
-	"sort"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 )
 
-func MD5(c chan string, data string) {
-	c <- DataSignerMd5(data)
+func MD5(out chan string, data string) {
+	out <- DataSignerMd5(data)
 }
 
-func CRC32(c chan string, data string) {
-	c <- DataSignerCrc32(data)
+func CRC32(out chan string, data string) {
+	out <- DataSignerCrc32(data)
 }
 
-// func SingleHash(data string, sendToMulti chan string) {
-func SingleHash(data string, sendToMulti chan string) {
+func SingleHash(in chan string, out chan string) {
 	c1 := make(chan string)
 	c2 := make(chan string)
-	go MD5(c1, data)
-	go CRC32(c2, data)
+	go MD5(c1, <-in)
+	go CRC32(c2, <-in)
 	go CRC32(c1, <-c1)
 
-	sendToMulti <- <-c2 + "~" + <-c1
+	out <- <-c2 + "~" + <-c1
 }
 
-func MultiMultiHash(data string, i int, wg *sync.WaitGroup, result []string) {
+func ForMultiHash(th int, data string, result *string, wg *sync.WaitGroup) {
 	defer wg.Done()
-	result[i] = DataSignerCrc32(strconv.Itoa(i) + data)
+	*result = DataSignerCrc32(strconv.Itoa(th) + data)
 }
 
-func MultiHash(receiveFromSingle chan string, sendToCombine chan string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	resultSingle := <-receiveFromSingle
-	close(receiveFromSingle)
+func MultiHash(in chan string, out chan string) {
+	data := <-in
 
-	resultArray := make([]string, 6)
+	result := make([]string, 6)
 
-	wgMulti := &sync.WaitGroup{}
+	wg := &sync.WaitGroup{}
 
 	for i := 0; i < 6; i++ {
-		wgMulti.Add(1)
-		go MultiMultiHash(resultSingle, i, wgMulti, resultArray)
+		wg.Add(1)
+		go ForMultiHash(i, data, &result[i], wg)
 	}
 
-	wgMulti.Wait()
+	wg.Wait()
 
-	result := ""
-
-	for _, item := range resultArray {
-		result += item
-	}
-
-	fmt.Println(result)
-	sendToCombine <- result
+	out <- strings.Join(result, "")
 }
 
-func CombineResults(receiveFromMilti chan string, returnResult chan string) {
+func CombineResults(in chan string, out chan string) {
 	hashArray := make([]string, 0)
 
-	for a := range receiveFromMilti {
+	for a := range in {
 		hashArray = append(hashArray, a)
 	}
 
 	sort.Strings(hashArray)
 
-	result := hashArray[0]
-	for j, hash := range hashArray {
-		if j == 0 {
-			continue
-		}
-		result += "_"
-		result += hash
-	}
-	fmt.Println("-//-")
-	returnResult <- result
-	close(returnResult)
+	out <- strings.Join(hashArray, "_")
 }
 
-func ExecutePipeline(input chan string, output chan string) {
-	sendToCombine := make(chan string)
-	receiveFromCombine := make(chan string)
-	go CombineResults(sendToCombine, receiveFromCombine)
-	fromSingsToMulti := make(chan string)
-	go SingleHash(<-input, fromSingsToMulti)
-	wg := &sync.WaitGroup{}
-	go MultiHash(fromSingsToMulti, sendToCombine, wg)
-	wg.Wait()
-	close(sendToCombine)
-	fmt.Println(<-receiveFromCombine)
+func ExecutePipeline(jobs ...job) {
+
+}
+
+func ExecutePipelineMock() {
+	start := time.Now()
+
+	c3 := make(chan string)
+	c4 := make(chan string)
+
+	go CombineResults(c3, c4)
+
+	for i := 0; i < 2; i++ {
+		c1 := make(chan string)
+		c2 := make(chan string)
+		c1 <- strconv.Itoa(i)
+		go SingleHash(c1, c2)
+		go MultiHash(c2, c3)
+	}
+
+	fmt.Println(<-c4)
+
+	fmt.Println(time.Now().Sub(start))
 }
